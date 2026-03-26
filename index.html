@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BioSecure">
+<meta name="theme-color" content="#1a4d2e">
+<title>BioSecure Porcino</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<style>
+:root{
+--primary:#1a4d2e;--secondary:#4a7c59;--accent:#7cb518;
+--danger:#e63946;--warning:#f77f00;--success:#2a9d8f;
+--bg-card:rgba(255,255,255,0.95);--text-primary:#0d1b2a;
+--shadow-strong:0 8px 32px rgba(0,0,0,0.15);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-overflow-scrolling:touch;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+background:#0d1b2a;color:var(--text-primary);overflow:hidden;height:100vh;height:100dvh;}
+#map{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;}
+
+.header{position:fixed;top:0;left:0;right:0;z-index:1000;
+background:linear-gradient(135deg,var(--primary),var(--secondary));
+padding:calc(env(safe-area-inset-top,8px) + 8px) 16px 6px;color:#fff;}
+.header-title{font-size:20px;font-weight:700;display:flex;align-items:center;gap:8px;}
+.header-subtitle{font-size:11px;opacity:0.8;margin-top:2px;}
+
+.status-bar{position:fixed;top:60px;left:0;right:0;z-index:1000;
+background:rgba(13,27,42,0.9);display:flex;align-items:center;gap:12px;
+padding:6px 16px;font-size:11px;color:#fff;backdrop-filter:blur(10px);}
+.status-indicator{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;}
+.status-indicator.active{background:#00ff88;box-shadow:0 0 6px #00ff88;}
+.status-indicator.inactive{background:#ff4444;}
+.status-item{display:flex;align-items:center;gap:4px;white-space:nowrap;}
+
+.control-panel{position:fixed;top:100px;right:10px;z-index:900;width:160px;}
+.control-card{background:var(--bg-card);border-radius:12px;padding:10px;
+box-shadow:var(--shadow-strong);margin-bottom:8px;}
+.control-card h3{font-size:11px;color:var(--primary);margin-bottom:8px;display:flex;align-items:center;gap:4px;}
+.zone-item{display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px;}
+.zone-indicator{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.zone-red{background:var(--danger);}
+.zone-yellow{background:var(--warning);}
+.zone-green{background:var(--success);}
+.zone-item span{margin-left:auto;font-weight:700;}
+
+.bottom-panel{position:fixed;bottom:0;left:0;right:0;z-index:1000;
+background:var(--bg-card);border-radius:16px 16px 0 0;
+padding:12px 16px calc(env(safe-area-inset-bottom,8px) + 12px);
+box-shadow:0 -4px 20px rgba(0,0,0,0.15);}
+.current-status{text-align:center;margin-bottom:10px;}
+.status-badge{display:inline-flex;align-items:center;gap:6px;
+padding:6px 16px;border-radius:20px;font-size:13px;font-weight:600;}
+.status-clear{background:#e8f5e9;color:#2e7d32;}
+.status-restricted{background:#fce4ec;color:#c62828;}
+.status-warning{background:#fff3e0;color:#e65100;}
+
+.quick-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+.btn{border:none;border-radius:10px;padding:10px 14px;font-size:12px;font-weight:600;
+cursor:pointer;display:flex;align-items:center;gap:6px;min-height:44px;min-width:44px;
+transition:transform 0.1s;-webkit-tap-highlight-color:transparent;}
+.btn:active{transform:scale(0.95);}
+.btn-primary{background:var(--primary);color:#fff;}
+.btn-success{background:var(--success);color:#fff;}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-secondary{background:#6c757d;color:#fff;}
+.btn-sm{padding:6px 10px;font-size:11px;min-height:36px;}
+
+.alert-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:2000;
+background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;
+padding:20px;backdrop-filter:blur(4px);}
+.alert-card{background:#fff;border-radius:16px;padding:20px;max-width:380px;width:100%;
+box-shadow:0 20px 60px rgba(0,0,0,0.3);animation:slideUp 0.3s ease;}
+@keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+.alert-danger{border-top:4px solid var(--danger);}
+.alert-warning{border-top:4px solid var(--warning);}
+.alert-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.alert-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;
+justify-content:center;font-size:18px;}
+.alert-danger .alert-icon{background:#fce4ec;color:var(--danger);}
+.alert-warning .alert-icon{background:#fff3e0;color:var(--warning);}
+.alert-title{font-size:16px;font-weight:700;}
+.alert-message{font-size:13px;line-height:1.5;margin-bottom:14px;}
+.protocol-info{background:#f8f9fa;border-radius:8px;padding:10px;margin-top:8px;font-size:12px;}
+.protocol-title{font-weight:700;margin-bottom:6px;color:var(--primary);}
+.alert-actions{display:flex;gap:8px;}
+.alert-actions .btn{flex:1;justify-content:center;}
+
+.history-panel{position:fixed;top:0;left:0;right:0;bottom:0;z-index:1500;
+background:var(--bg-card);transform:translateX(100%);transition:transform 0.3s ease;
+overflow-y:auto;padding:20px;padding-top:calc(env(safe-area-inset-top,20px) + 20px);}
+.history-panel.open{transform:translateX(0);}
+.history-item{display:flex;align-items:center;gap:10px;padding:10px;
+border-bottom:1px solid #eee;font-size:13px;}
+.history-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+
+.csv-modal{position:fixed;top:0;left:0;right:0;bottom:0;z-index:2000;
+background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:20px;}
+.csv-content{background:#fff;border-radius:16px;padding:20px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;}
+.csv-content textarea{width:100%;height:200px;border:1px solid #ddd;border-radius:8px;
+padding:10px;font-size:12px;font-family:monospace;resize:vertical;}
+.csv-content input[type="file"]{font-size:14px;margin:10px 0;}
+
+@media(max-width:600px){
+.control-panel{width:140px;top:95px;right:6px;}
+.control-card{padding:8px;}
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="header">
+<div class="header-title"><i class="fas fa-shield-alt"></i> BioSecure</div>
+<div class="header-subtitle">Bioseguridad Porcina - Campo</div>
+</div>
+
+<div class="status-bar">
+<div class="status-item"><div class="status-indicator inactive" id="gpsIndicator"></div>GPS</div>
+<div class="status-item"><div class="status-indicator active" id="geoIndicator"></div>Geofencing</div>
+<div class="status-item" id="currentCoords"><i class="fas fa-map-marker-alt"></i><span>Esperando GPS...</span></div>
+</div>
+
+<div class="control-panel">
+<div class="control-card">
+<h3><i class="fas fa-layer-group"></i> Zonas Activas</h3>
+<div class="zone-legend">
+<div class="zone-item"><div class="zone-indicator zone-red"></div>Críticas (C/PED)<span id="redCount">0</span></div>
+<div class="zone-item"><div class="zone-indicator zone-yellow"></div>Precaución (B/BV)<span id="yellowCount">0</span></div>
+<div class="zone-item"><div class="zone-indicator zone-green"></div>Limpias (M/A)<span id="greenCount">0</span></div>
+</div>
+</div>
+<div class="control-card">
+<h3><i class="fas fa-clock"></i> Historial</h3>
+<button class="btn btn-sm btn-primary" onclick="showHistory()" style="width:100%">
+<i class="fas fa-list"></i> Ver Visitas
+</button>
+</div>
+</div>
+
+<div class="bottom-panel">
+<div class="current-status">
+<div class="status-badge status-clear" id="statusBadge">
+<i class="fas fa-check-circle"></i><span>Acceso Libre</span>
+</div>
+</div>
+<div class="quick-actions">
+<button class="btn btn-primary" onclick="loadFarmsData()"><i class="fas fa-upload"></i> Cargar Granjas</button>
+<button class="btn btn-success" onclick="clearDowntime()"><i class="fas fa-check"></i> Protocolo</button>
+<button class="btn btn-danger" onclick="emergencyProtocol()"><i class="fas fa-exclamation-triangle"></i> Emergencia</button>
+</div>
+</div>
+
+<div id="alertOverlay" class="alert-overlay" style="display:none"></div>
+
+<div id="historyPanel" class="history-panel">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+<h2 style="font-size:18px;"><i class="fas fa-history"></i> Historial de Visitas</h2>
+<button class="btn btn-sm btn-secondary" onclick="closeHistory()"><i class="fas fa-times"></i></button>
+</div>
+<div id="historyList"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── State ──
+let map, userMarker, accuracyCircle, watchId;
+let currentLat=40.2732, currentLng=-86.1349;
+let farmMarkers=[], allFarms=[];
+let locationHistory=[];
+let currentAlert=null;
+
+// ── Downtime Matrix (CVFF) ──
+const downtimeMatrix={
+'M':{red:0,yellow:0,green:0},
+'A':{red:0,yellow:0,green:0},
+'B':{red:24,yellow:0,green:0},
+'BV':{red:24,yellow:0,green:0},
+'C':{red:0,yellow:72,green:72},
+'PED':{red:0,yellow:72,green:72}
+};
+
+// ── Sample Farms ──
+const sampleFarms=[
+{nombre:"Maxwell Finisher",health_status:"C",tipo:"red",coords:[40.2632,-86.1249],descripcion_status:"PRRS activo y circulando",horas_inactividad:72,categoria:"Finisher",condado:"Grant"},
+{nombre:"BuenaVista Sow Unit",health_status:"B",tipo:"yellow",coords:[40.2832,-86.1449],descripcion_status:"Expuesto pero estable",horas_inactividad:24,categoria:"Sow Unit",condado:"Blackford"},
+{nombre:"Maxwell Nursery",health_status:"A",tipo:"green",coords:[40.2432,-86.1049],descripcion_status:"Limpio - Nunca expuesto",horas_inactividad:0,categoria:"Nursery",condado:"Grant"},
+{nombre:"Hartford Sow Farm",health_status:"BV",tipo:"yellow",coords:[40.2950,-86.1600],descripcion_status:"Vacunado MLV estable",horas_inactividad:24,categoria:"Sow Unit",condado:"Blackford"},
+{nombre:"Marion Gilt Unit",health_status:"M",tipo:"green",coords:[40.2500,-86.0900],descripcion_status:"Multiplicadora limpia",horas_inactividad:0,categoria:"Gilt Developer",condado:"Grant"},
+{nombre:"Jonesboro Finisher 2",health_status:"PED",tipo:"red",coords:[40.2350,-86.1700],descripcion_status:"PED activo - brote reciente",horas_inactividad:72,categoria:"Finisher",condado:"Grant"},
+{nombre:"Upland Nursery",health_status:"A",tipo:"green",coords:[40.2700,-86.0700],descripcion_status:"Limpio - Nunca expuesto",horas_inactividad:0,categoria:"Nursery",condado:"Grant"},
+{nombre:"Fairmount Sow",health_status:"C",tipo:"red",coords:[40.3200,-86.0500],descripcion_status:"PRRS activo",horas_inactividad:72,categoria:"Sow Unit",condado:"Grant"},
+{nombre:"Gas City Finisher",health_status:"B",tipo:"yellow",coords:[40.3350,-86.0900],descripcion_status:"Expuesto estable",horas_inactividad:24,categoria:"Finisher",condado:"Grant"},
+{nombre:"Sweetser Nursery",health_status:"A",tipo:"green",coords:[40.2200,-86.1300],descripcion_status:"Limpio",horas_inactividad:0,categoria:"Nursery",condado:"Grant"}
+];
+
+// ── Init ──
+function initializeMap(){
+map=L.map('map',{zoomControl:false}).setView([currentLat,currentLng],10);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
+L.control.zoom({position:'bottomright'}).addTo(map);
+loadSampleData();
+}
+
+function initializeGPS(){
+if(!navigator.geolocation){
+document.getElementById('gpsIndicator').classList.remove('active');
+document.getElementById('gpsIndicator').classList.add('inactive');
+return;
+}
+watchId=navigator.geolocation.watchPosition(updateLocation,handleLocationError,{
+enableHighAccuracy:true,maximumAge:10000,timeout:15000});
+setInterval(checkZoneProximity,5000);
+}
+
+function loadSampleData(){
+addFarmsToMap(sampleFarms);
+allFarms=sampleFarms;
+}
+
+// ── GPS ──
+function updateLocation(pos){
+currentLat=pos.coords.latitude;
+currentLng=pos.coords.longitude;
+const acc=pos.coords.accuracy;
+document.getElementById('gpsIndicator').className='status-indicator active';
+document.getElementById('currentCoords').querySelector('span').textContent=
+currentLat.toFixed(4)+', '+currentLng.toFixed(4);
+
+if(userMarker){
+userMarker.setLatLng([currentLat,currentLng]);
+accuracyCircle.setLatLng([currentLat,currentLng]).setRadius(acc);
+}else{
+userMarker=L.circleMarker([currentLat,currentLng],{
+radius:8,fillColor:'#007AFF',fillOpacity:1,color:'#fff',weight:3}).addTo(map);
+accuracyCircle=L.circle([currentLat,currentLng],{
+radius:acc,fillColor:'#007AFF',fillOpacity:0.1,color:'#007AFF',weight:1}).addTo(map);
+map.setView([currentLat,currentLng],13);
+}
+checkZoneProximity();
+}
+
+function handleLocationError(err){
+console.warn('GPS error:',err.message);
+document.getElementById('gpsIndicator').className='status-indicator inactive';
+}
+
+// ── Distance (Haversine) ──
+function calculateDistance(lat1,lng1,lat2,lng2){
+const R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ── Map / Farms ──
+function addFarmsToMap(farms){
+farmMarkers.forEach(m=>map.removeLayer(m.marker));
+farmMarkers=[];
+let rc=0,yc=0,gc=0;
+farms.forEach(f=>{
+const color=f.tipo==='red'?'#e63946':f.tipo==='yellow'?'#f77f00':'#2a9d8f';
+if(f.tipo==='red')rc++;else if(f.tipo==='yellow')yc++;else gc++;
+const marker=L.circleMarker(f.coords,{
+radius:10,fillColor:color,fillOpacity:0.85,color:'#fff',weight:2}).addTo(map);
+marker.bindPopup(`<strong>${f.nombre}</strong><br>Status: ${f.health_status} - ${f.descripcion_status}
+<br>Inactividad: ${f.horas_inactividad}h<br>${f.categoria||''} ${f.condado?'- '+f.condado:''}`);
+farmMarkers.push({marker,farm:f});
+});
+document.getElementById('redCount').textContent=rc;
+document.getElementById('yellowCount').textContent=yc;
+document.getElementById('greenCount').textContent=gc;
+}
+
+function parseCSV(csv){
+const lines=csv.trim().split('\n');
+if(lines.length<2)return[];
+const headers=lines[0].split(',').map(h=>h.trim().toLowerCase());
+const farms=[];
+for(let i=1;i<lines.length;i++){
+const vals=lines[i].split(',').map(v=>v.trim());
+if(vals.length<5)continue;
+const obj={};
+headers.forEach((h,idx)=>obj[h]=vals[idx]||'');
+const lat=parseFloat(obj.lat||obj.latitude||0);
+const lng=parseFloat(obj.lng||obj.lon||obj.longitude||0);
+if(!lat&&!lng)continue;
+farms.push({
+nombre:obj.nombre||obj.name||'Granja '+(i),
+health_status:obj.health_status||obj.status||'A',
+tipo:obj.tipo||obj.type||'green',
+coords:[lat,lng],
+descripcion_status:obj.descripcion_status||obj.description||'',
+horas_inactividad:parseInt(obj.horas_inactividad||obj.downtime||0),
+categoria:obj.categoria||obj.category||'',
+condado:obj.condado||obj.county||''
+});
+}
+return farms;
+}
+
+function loadFarmsData(){
+const modal=document.createElement('div');
+modal.className='csv-modal';
+modal.id='csvModal';
+modal.innerHTML=`<div class="csv-content">
+<h3 style="margin-bottom:12px"><i class="fas fa-upload"></i> Cargar Granjas</h3>
+<p style="font-size:12px;color:#666;margin-bottom:10px">CSV con columnas: nombre,lat,lng,tipo,health_status,descripcion_status,horas_inactividad,categoria,condado</p>
+<input type="file" accept=".csv,.txt" id="csvFile" style="margin-bottom:10px">
+<textarea id="csvText" placeholder="O pegue CSV aquí..."></textarea>
+<div style="display:flex;gap:8px;margin-top:12px">
+<button class="btn btn-primary" onclick="processCSV()" style="flex:1"><i class="fas fa-check"></i> Procesar</button>
+<button class="btn btn-secondary" onclick="document.getElementById('csvModal').remove()" style="flex:1"><i class="fas fa-times"></i> Cancelar</button>
+</div>
+<button class="btn btn-success" onclick="loadSampleDataBtn()" style="width:100%;margin-top:8px"><i class="fas fa-database"></i> Cargar Datos Demo (10 granjas)</button>
+</div>`;
+document.body.appendChild(modal);
+}
+
+function loadSampleDataBtn(){
+document.getElementById('csvModal').remove();
+allFarms=sampleFarms;
+addFarmsToMap(sampleFarms);
+showToast('10 granjas demo cargadas');
+}
+
+function processCSV(){
+const fileInput=document.getElementById('csvFile');
+const textArea=document.getElementById('csvText');
+if(fileInput.files.length>0){
+const reader=new FileReader();
+reader.onload=function(e){
+const farms=parseCSV(e.target.result);
+if(farms.length){allFarms=farms;addFarmsToMap(farms);showToast(farms.length+' granjas cargadas');}
+else showToast('No se encontraron granjas válidas');
+document.getElementById('csvModal').remove();
+};
+reader.readAsText(fileInput.files[0]);
+}else if(textArea.value.trim()){
+const farms=parseCSV(textArea.value);
+if(farms.length){allFarms=farms;addFarmsToMap(farms);showToast(farms.length+' granjas cargadas');}
+else showToast('No se encontraron granjas válidas');
+document.getElementById('csvModal').remove();
+}else{showToast('Seleccione archivo o pegue CSV');}
+}
+
+// ── Geofencing ──
+function checkZoneProximity(){
+farmMarkers.forEach(({farm})=>{
+const dist=calculateDistance(currentLat,currentLng,farm.coords[0],farm.coords[1]);
+if(dist<=500&&!farm._alerted){
+farm._alerted=true;
+handleZoneEntry(farm);
+}else if(dist>600){farm._alerted=false;}
+});
+}
+
+function handleZoneEntry(farm){
+const lastHS=getLastHealthStatus();
+const dtReq=getDowntimeRequired(lastHS,farm.tipo);
+if(dtReq>0){
+showDangerAlert(farm,dtReq,lastHS);
+}else if(farm.tipo!=='green'){
+showWarningAlert(farm);
+}
+addToHistory(farm);
+updateStatus();
+}
+
+function getLastHealthStatus(){
+for(let i=locationHistory.length-1;i>=0;i--){
+if(locationHistory[i].health_status)return locationHistory[i].health_status;
+}
+return null;
+}
+
+function getDowntimeRequired(fromStatus,toZone){
+if(!fromStatus)return 0;
+const last=locationHistory[locationHistory.length-1];
+if(!last||!last.timestamp)return 0;
+const hoursElapsed=(new Date()-new Date(last.timestamp))/(1000*60*60);
+const required=downtimeMatrix[fromStatus]?.[toZone]||0;
+return Math.max(0,required-hoursElapsed);
+}
+
+// ── Alerts ──
+function showDangerAlert(farm,hours,fromStatus){
+const overlay=document.getElementById('alertOverlay');
+overlay.style.display='flex';
+overlay.innerHTML=`<div class="alert-card alert-danger">
+<div class="alert-header">
+<div class="alert-icon"><i class="fas fa-ban"></i></div>
+<div class="alert-title">¡ACCESO RESTRINGIDO!</div>
+</div>
+<div class="alert-message">
+<p>No puedes ingresar a esta zona debido a tu historial de visitas recientes.</p>
+<div class="protocol-info">
+<div class="protocol-title"><i class="fas fa-clipboard-list"></i> Protocolo CVFF</div>
+<div class="protocol-details">
+Destino: <strong>${farm.nombre}</strong> (${farm.health_status})<br>
+Tiempo restante: <strong>${Math.ceil(hours)} horas</strong><br>
+Desde: ${fromStatus} → ${farm.health_status}<br>
+Protocolo CVFF requerido
+</div>
+</div>
+</div>
+<div class="alert-actions">
+<button class="btn btn-success" onclick="approveAccess('${farm.nombre}')"><i class="fas fa-check"></i> Aprobar Excepción</button>
+<button class="btn btn-secondary" onclick="closeAlert()"><i class="fas fa-times"></i> Cancelar</button>
+</div>
+</div>`;
+updateStatusBadge('restricted','ACCESO RESTRINGIDO');
+if(navigator.vibrate)navigator.vibrate([200,100,200]);
+}
+
+function showWarningAlert(farm){
+const overlay=document.getElementById('alertOverlay');
+overlay.style.display='flex';
+overlay.innerHTML=`<div class="alert-card alert-warning">
+<div class="alert-header">
+<div class="alert-icon"><i class="fas fa-exclamation-triangle"></i></div>
+<div class="alert-title">ZONA DE PRECAUCIÓN</div>
+</div>
+<div class="alert-message">
+<p>Estás entrando a una zona con riesgo sanitario.</p>
+<div class="protocol-info">
+<div class="protocol-title"><i class="fas fa-info-circle"></i> Información</div>
+<div class="protocol-details">
+Granja: <strong>${farm.nombre}</strong><br>
+Status: ${farm.health_status} - ${farm.descripcion_status}<br>
+Inactividad requerida: ${farm.horas_inactividad}h después de salir
+</div>
+</div>
+</div>
+<div class="alert-actions">
+<button class="btn btn-primary" onclick="acknowledgeWarning()"><i class="fas fa-check"></i> Entendido</button>
+</div>
+</div>`;
+updateStatusBadge('warning','ZONA PRECAUCIÓN');
+if(navigator.vibrate)navigator.vibrate(200);
+}
+
+function closeAlert(){document.getElementById('alertOverlay').style.display='none';}
+
+function approveAccess(farmName){
+const ts=new Date().toLocaleString('es-ES');
+locationHistory.push({type:'manual_approval',timestamp:new Date().toISOString(),
+farm:farmName,veterinarian:'Veterinario Campo',reason:'Excepción autorizada'});
+closeAlert();
+showToast('✅ Acceso aprobado - '+ts);
+updateStatusBadge('clear','Acceso Libre');
+}
+
+function acknowledgeWarning(){closeAlert();}
+
+// ── History ──
+function addToHistory(farm){
+locationHistory.push({
+nombre:farm.nombre,health_status:farm.health_status,tipo:farm.tipo,
+timestamp:new Date().toISOString(),coords:[currentLat,currentLng]
+});
+if(locationHistory.length>200)locationHistory.shift();
+try{localStorage.setItem('bioSecureHistory',JSON.stringify(locationHistory));}catch(e){}
+}
+
+function showHistory(){
+const panel=document.getElementById('historyPanel');
+const list=document.getElementById('historyList');
+if(!locationHistory.length){
+list.innerHTML='<p style="text-align:center;color:#999;padding:40px">Sin visitas registradas</p>';
+}else{
+list.innerHTML=locationHistory.slice().reverse().map(h=>{
+const color=h.tipo==='red'?'#e63946':h.tipo==='yellow'?'#f77f00':h.type==='manual_approval'?'#007AFF':'#2a9d8f';
+const label=h.type==='manual_approval'?'Excepción: '+h.farm:h.nombre;
+const time=new Date(h.timestamp).toLocaleString('es-ES');
+return `<div class="history-item"><div class="history-dot" style="background:${color}"></div>
+<div><strong>${label}</strong><br><span style="font-size:11px;color:#888">${time} ${h.health_status?'('+h.health_status+')':''}</span></div></div>`;
+}).join('');
+}
+panel.classList.add('open');
+}
+
+function closeHistory(){document.getElementById('historyPanel').classList.remove('open');}
+
+function updateStatus(){
+const last=locationHistory[locationHistory.length-1];
+if(!last)return;
+if(last.tipo==='red')updateStatusBadge('restricted','Última: Zona Roja');
+else if(last.tipo==='yellow')updateStatusBadge('warning','Última: Zona Amarilla');
+else updateStatusBadge('clear','Acceso Libre');
+}
+
+function updateStatusBadge(type,text){
+const badge=document.getElementById('statusBadge');
+badge.className='status-badge status-'+type;
+const icon=type==='restricted'?'fa-ban':type==='warning'?'fa-exclamation-triangle':'fa-check-circle';
+badge.innerHTML=`<i class="fas ${icon}"></i><span>${text}</span>`;
+}
+
+// ── Quick Actions ──
+function clearDowntime(){
+if(confirm('¿Confirmar que se completó el protocolo de lavado y desinfección?')){
+locationHistory.push({type:'protocol_complete',timestamp:new Date().toISOString(),note:'Protocolo completado'});
+updateStatusBadge('clear','Acceso Libre');
+showToast('✅ Protocolo completado registrado');
+}
+}
+
+function emergencyProtocol(){
+if(confirm('⚠️ ¿Activar PROTOCOLO DE EMERGENCIA?\n\nEsto registrará una emergencia sanitaria.')){
+locationHistory.push({type:'emergency',timestamp:new Date().toISOString(),
+coords:[currentLat,currentLng],note:'Emergencia activada'});
+showToast('🚨 Emergencia registrada - Contacte supervisor');
+if(navigator.vibrate)navigator.vibrate([500,200,500,200,500]);
+}
+}
+
+// ── Utils ──
+function showToast(msg){
+const t=document.createElement('div');
+t.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:3000;background:rgba(0,0,0,0.85);color:#fff;padding:14px 24px;border-radius:12px;font-size:14px;text-align:center;pointer-events:none;';
+t.textContent=msg;document.body.appendChild(t);
+setTimeout(()=>{t.style.transition='opacity 0.5s';t.style.opacity='0';setTimeout(()=>t.remove(),500);},2000);
+}
+
+function getStatusDescription(s){
+const m={M:'Multiplicadora',A:'Limpio',B:'Expuesto estable',BV:'Vacunado MLV',C:'PRRS activo',PED:'PED activo'};
+return m[s]||s;
+}
+
+function getDowntimeHours(s){
+const m={M:0,A:0,B:24,BV:24,C:72,PED:72};return m[s]||0;
+}
+
+// ── Load saved history ──
+try{const saved=localStorage.getItem('bioSecureHistory');
+if(saved)locationHistory=JSON.parse(saved);}catch(e){}
+
+// ── Boot ──
+initializeMap();
+initializeGPS();
+</script>
+</body>
+</html>
